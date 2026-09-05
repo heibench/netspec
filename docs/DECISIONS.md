@@ -281,7 +281,7 @@ The cost is real: every change here now needs a pull request, including a one-li
 docs fix, and there is no emergency escape hatch short of turning the setting off.
 
 Publishing is PyPI Trusted Publishing (OIDC); no token exists in this repo. The
-registration names `CameronBrooks11/netspec`, workflow `release.yml`, environment
+registration names `heibench/netspec`, workflow `release.yml`, environment
 `pypi`, project `kicad-netspec`. Renaming any of them breaks releases *silently* — the
 workflow runs and the upload is rejected — so a test asserts the filename and the
 environment.

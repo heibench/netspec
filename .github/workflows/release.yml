@@ -8,10 +8,10 @@
 # installs cold and answers `--version`. Correctness of the code is the `Check` gate's
 # job, which every commit on main has already run.
 #
-# That argument has a gap worth knowing about: it holds fully only when main is
-# protected to require `Check`. netspec's main is not protected yet (D17), so the
-# ancestry gate below stops a stray tag but cannot prove the gate passed. Every action
-# here is pinned to an exact ref rather than a floating major, and a test enforces that.
+# That argument rests on main being protected to require `Check`, which it now is --
+# `ok` required, administrators included, so a tag on main is a commit the gate passed.
+# The ancestry check below enforces the "on main" half. Every action here is pinned to an
+# exact ref rather than a floating major, and a test enforces that.
 
 name: Release
 
@@ -125,7 +125,7 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   major-tag:
-    # Consumers write `uses: CameronBrooks11/netspec@v0`, which is the convention for
+    # Consumers write `uses: heibench/netspec@v0`, which is the convention for
     # actions and needs a major tag that moves with each release. Only after a
     # successful publish, so the moving tag never points at a version nobody can install.
     #

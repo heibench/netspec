@@ -126,3 +126,30 @@ def test_the_gate_refuses_when_it_cannot_resolve_main(tmp_path: Path) -> None:
 @pytest.mark.skipif(not GATE.exists(), reason="gate script absent")
 def test_the_gate_is_executable() -> None:
     assert GATE.stat().st_mode & 0o111, "release.yml calls it directly"
+
+
+def test_every_example_contract_still_adjudicates() -> None:
+    """Nothing exercised examples/, so one could rot silently against a vocabulary change.
+
+    They are the first thing a reader copies, and `netspec check` executes them -- an
+    example that no longer loads is worse than no example.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    examples = sorted((root / "examples").glob("*.py"))
+    assert examples, "examples/ is empty"
+
+    for contract in examples:
+        done = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "kicad_netspec.cli", "check", str(contract)],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=root,
+        )
+        if done.returncode == 4:
+            pytest.skip(f"no KiCad available: {done.stderr.strip()[:80]}")
+        assert done.returncode == 0, f"{contract.name}: {done.stdout}\n{done.stderr}"

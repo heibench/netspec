@@ -130,7 +130,7 @@ A GitHub Action that comments on a pull request with the connectivity delta -- s
 no PCB team has and most would want, agent or no agent:
 
 ```yaml
-- uses: CameronBrooks11/netspec@v0
+- uses: heibench/netspec@v0
   with:
     schematic: hardware/board.kicad_sch
     contract: hardware/contract.py   # optional

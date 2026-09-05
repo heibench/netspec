@@ -233,7 +233,7 @@ def render(sections: list[str], *, changed: bool, suspicious: bool) -> str:
             *sections,
             "",
             "<sub>Reported by "
-            "[netspec](https://github.com/CameronBrooks11/netspec) — KiCad's own netlist, "
+            "[netspec](https://github.com/heibench/netspec) — KiCad's own netlist, "
             "not a guess.</sub>",
         ]
     )
