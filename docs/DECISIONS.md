@@ -2,7 +2,7 @@
 
 Numbered, dated, and load-bearing. Each records what was decided and *why*, so it can be
 revisited deliberately rather than re-litigated by accident. Follows the convention in
-[`partspec`](https://github.com/CameronBrooks11/partspec).
+[`partspec`](https://github.com/heibench/partspec).
 
 ---
 
