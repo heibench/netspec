@@ -1,6 +1,6 @@
 [project]
 name = "kicad-netspec"
-version = "0.6.0"
+version = "0.7.0"
 description = "Verify PCB connectivity against declared engineering intent, using KiCad as the oracle."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -25,8 +25,8 @@ netspec-mcp = "kicad_netspec.mcp:main"
 netspec = "kicad_netspec.pytest_plugin"
 
 [project.urls]
-Homepage = "https://github.com/CameronBrooks11/netspec"
-Issues = "https://github.com/CameronBrooks11/netspec/issues"
+Homepage = "https://github.com/heibench/netspec"
+Issues = "https://github.com/heibench/netspec/issues"
 
 [build-system]
 requires = ["hatchling"]

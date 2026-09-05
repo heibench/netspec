@@ -23,7 +23,7 @@ jobs:
           # The base revision must be in the clone or there is nothing to compare to.
           fetch-depth: 0
 
-      - uses: CameronBrooks11/netspec@v0
+      - uses: heibench/netspec@v0
         with:
           schematic: hardware/board.kicad_sch
           # Optional: also adjudicate a contract against the head revision.
