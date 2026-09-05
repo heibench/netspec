@@ -679,6 +679,78 @@ strictly *weaker* than the string check it replaced: an AST-only scan missed
 ``__import__("subprocess")``, which grep caught for free. It is now the union of both,
 with docstrings stripped so prose explaining why a module is safe does not trip it.
 
+## D25 — `through` and `mirrors`, and the two ways the first version was unsound
+
+Both came out of running this project's analysis over a real dual-channel motor
+controller, and neither exists in any of the 94 tools surveyed behind this project. Both
+were also wrong on their first pass in ways that made a green report actively misleading,
+so the record below is the corrected version.
+
+**``through(a, ref, b)`` — a series part is the path, and by default the only path.** A
+fuse, a ferrite, a sense resistor, a net tie separating logic ground from power ground.
+Bypass one or parallel it and the netlist reads as ordinary: both nets exist, everything
+is connected, ERC is silent.
+
+Two limits are stated in the docstring rather than left to be inferred:
+
+* **It asserts pin membership, not conduction.** A netlist reports which pins sit on which
+  nets and nothing about what a part does between them, so a four-pin package with a pin
+  on each net satisfies this whether it is a resistor or an optocoupler. Reading it as
+  "current flows here" is the reader's inference, not netspec's claim, and a review
+  demonstrated it certifying an isolation barrier.
+* **``only`` sees single-component bridges.** ``GND -R8- MID -R9- GNDPWR`` is a ground
+  loop it will not report. Searching further was tried and **rejected on evidence**: a
+  two-component search over the real board finds ``GND -U1- +12V -J1- GNDPWR`` and calls a
+  correct design looped, because every rail reaches every other through the power tree. A
+  check that fires on good boards is worse than one with a stated edge.
+
+**``mirrors(a, b)`` — two parts are wired to the same shape.** Structural, not textual:
+the pin-wise mapping between their nets must be a bijection, **and a net carried by both
+parts must map to itself**. No channel index, no string surgery on net names — the design
+note behind this proposed both and neither is needed.
+
+That second clause is load-bearing and was missing. Without it the rule is graph
+isomorphism, which is invariant under relabelling, so **every permutation** of one part's
+pin-to-net map passed — a VCC/GND swap included, which is the exact defect class this
+project exists to catch. The docstring asserted the invariant while the code did not
+enforce it, and no test noticed, because nothing tested the claim.
+
+A pin connected to nothing also mirrored a wired one: KiCad names each floating pin
+uniquely (``unconnected-(U3-IN-Pad1)``), so to a bare bijection it was just another
+distinct net, and a part with every pin unwired mirrored a fully wired one. A one-node net
+the *designer* named is a different thing — a deliberate label on a sheet pin — so
+anonymity is part of the test.
+
+**The shared-net clause is the only anchor, and where two instances share no net the rule
+is pure isomorphism.** Every permutation passes then — 6/6 at three pins, 24/24 at four,
+40320/40320 at eight — against 1/6, 2/24 and 720/40320 when two nets are shared. Per-channel
+supplies are not exotic (an isolated gate driver, a bootstrap half-bridge leg, a per-phase
+floating rail), so a VCC/GND swap between two such instances mirrors happily.
+
+Nothing in a netlist can close that: the correspondence between ``/VDDA`` and ``/VDDB``
+lives in a naming convention, and reading one would be the string surgery this rule was
+designed to avoid. So it is a stated bound, not a defect to fix — use ``mirrors`` where
+instances share a rail, which is the common case and the one the real board has.
+
+An earlier version of this entry gave a table of "random rewiring" pass rates instead.
+That measured the wrong axis: random rewiring mostly produces net *collisions*, which the
+plain bijection already rejects, so the numbers flattered the fix and said nothing about
+permutations — the actual defect class. Replaced with the permutation figures above.
+
+Two smaller bounds: ``mirrors`` pairs pins **by number**, not by function, making it the
+one rule here that leans on the identifier D12 calls untrustworthy; and two instances that
+touch each other cannot mirror, since the net linking them is shared and must map to
+itself, which excludes cascaded stages and resistor ladders by design.
+
+**What ``mirrors`` cannot see**: it compares two parts, so a block is several rules, and a
+change leaving both instances equally wrong is invisible. Comparing two sheet instances
+wholesale needs a component correspondence between them, which this does not attempt.
+
+Both are symmetric in their arguments and key accordingly (D23). Both refuse a wrong-arity
+tuple on the dataclass, not only in the helper, because ``isolate.py`` rebuilds them from
+JSON — the same reason ``Forbid`` carries that guard. An absent part is ``skipped``,
+matching ``polarity`` and D9's taxonomy, which the first version diverged from silently.
+
 ## D14 — Name: `netspec`
 
 CLI and import-facing name is `netspec`, in the family idiom: `partspec` for mechanical

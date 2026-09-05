@@ -84,7 +84,7 @@ policy DSL to invent. Pins are named by *function* where the symbol offers one, 
 pin numbers are exactly what the known schematic-writer bugs corrupt.
 
 ```python
-from kicad_netspec import Spec, net, polarity, forbid
+from kicad_netspec import Spec, forbid, mirrors, net, polarity, through
 
 board = Spec(
     source="hardware/board.kicad_sch",
@@ -93,6 +93,8 @@ board = Spec(
         net("+3V3", ["U1.VO", "C2.1"]),
         polarity("C1", plus="VIN", minus="GND"),
         forbid("VIN", "GND"),
+        through("GND", "NT1", "GNDPWR"),  # the only path between two grounds
+        mirrors("U2", "U3"),  # two channels, wired the same
     ],
 )
 ```

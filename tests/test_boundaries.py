@@ -222,12 +222,14 @@ def test_every_rule_type_can_appear_in_the_report() -> None:
 
 
 def test_every_rule_describes_a_subject_and_stays_json_safe() -> None:
-    from kicad_netspec.contract import Forbid, Net, Polarity, Rule, Unknown
+    from kicad_netspec.contract import Forbid, Mirrors, Net, Polarity, Rule, Through, Unknown
 
     samples = [
         Net("VIN", ("R1.1",)),
         Polarity("C1", "VIN", "GND"),
         Forbid(("VIN", "GND")),
+        Through(ref="F1", nets=("VIN", "VBUS")),
+        Mirrors(parts=("U2", "U3")),
         Unknown(declared="something_from_a_future_netspec"),
     ]
     assert {type(s) for s in samples} == set(Rule.__subclasses__()), (

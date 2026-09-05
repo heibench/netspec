@@ -20,7 +20,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, cast
 
-from kicad_netspec.contract import Forbid, Net, Polarity, Rule, Spec, Unknown
+from kicad_netspec.contract import (
+    Forbid,
+    Mirrors,
+    Net,
+    Polarity,
+    Rule,
+    Spec,
+    Through,
+    Unknown,
+)
 from kicad_netspec.model import Netlist
 from kicad_netspec.resolve import Resolved, resolve_spec
 
@@ -168,6 +177,144 @@ def _adjudicate(rule: Rule, netlist: Netlist, resolved: Resolved) -> CheckResult
     # result the report cannot key, and nothing would say so.
     outcome = checker(rule, netlist, resolved)
     return replace(outcome, data=described) if not outcome.data else outcome
+
+
+@checks(Through)
+def _check_through(rule: Through, netlist: Netlist, resolved: Resolved) -> CheckResult:
+    label = str(rule)
+    a, b = (resolved.net(n) or n for n in rule.nets)
+
+    if a == b:
+        # The constructor refuses two identical spellings, but resolution (D19) can map
+        # two different ones onto one net afterwards, and nothing re-checked.
+        return CheckResult(
+            rule=label,
+            status="fail",
+            detail=f"{rule.nets[0]} and {rule.nets[1]} are both {a}; a net cannot bridge to itself",
+        )
+
+    absent = [n for n, found in zip(rule.nets, (a, b), strict=True) if found not in netlist.nets]
+    if absent:
+        # Distinguished the way _check_forbid distinguishes them: a merge keeps one of
+        # the names, so both ends vanishing is not a merge, it is a contract naming
+        # nothing real.
+        if len(absent) == len(rule.nets):
+            detail = (
+                f"neither {' nor '.join(absent)} is in this design; the rule names nothing real"
+            )
+        else:
+            detail = f"{absent[0]} is not in this design; it may have merged with the other end"
+        return CheckResult(rule=label, status="fail", detail=detail)
+
+    if rule.ref not in netlist.components:
+        return CheckResult(rule=label, status="skipped", detail=f"{rule.ref} is not in this design")
+
+    sits_on = {netlist.net_of(rule.ref, n.pin) for n in netlist.nodes_of(rule.ref)}
+    if not {a, b} <= sits_on:
+        missing = sorted({a, b} - sits_on)
+        return CheckResult(
+            rule=label,
+            status="fail",
+            detail=f"{rule.ref} has no pin on {', '.join(missing)}",
+        )
+
+    if rule.only:
+        both = {n.ref for n in netlist.nets[a].nodes} & {n.ref for n in netlist.nets[b].nodes}
+        others = sorted(both - {rule.ref})
+        if others:
+            return CheckResult(
+                rule=label,
+                status="fail",
+                detail=(
+                    f"{', '.join(others)} also has pins on both {a} and {b}. A second "
+                    "bridge is legal wiring, so ERC will not report it."
+                ),
+            )
+    return CheckResult(rule=label, status="pass")
+
+
+@checks(Mirrors)
+def _check_mirrors(rule: Mirrors, netlist: Netlist, resolved: Resolved) -> CheckResult:
+    label = str(rule)
+    a, b = rule.parts
+
+    for ref in (a, b):
+        if ref not in netlist.components:
+            return CheckResult(rule=label, status="skipped", detail=f"{ref} is not in this design")
+
+    on_a = {n.pin: str(netlist.net_of(a, n.pin)) for n in netlist.nodes_of(a)}
+    on_b = {n.pin: str(netlist.net_of(b, n.pin)) for n in netlist.nodes_of(b)}
+
+    if set(on_a) != set(on_b):
+        only_a = sorted(set(on_a) - set(on_b))
+        only_b = sorted(set(on_b) - set(on_a))
+        said = [f"{a} has pin {', '.join(only_a)}"] if only_a else []
+        said += [f"{b} has pin {', '.join(only_b)}"] if only_b else []
+        return CheckResult(rule=label, status="fail", detail="; ".join(said))
+
+    # KiCad reports a pin wired to nothing as a one-node net it named itself,
+    # `unconnected-(U3-IN-Pad1)`. Left in the mapping, a dangling pin paired with a wired
+    # one as if it were a net. A one-node net the *designer* named is a different thing
+    # -- a deliberate label on a sheet pin -- so anonymity is part of the test.
+    floating = {name for name, net in netlist.nets.items() if net.anonymous and not net.connected}
+    for pin in sorted(on_a):
+        loose_a, loose_b = on_a[pin] in floating, on_b[pin] in floating
+        if loose_a != loose_b:
+            wired, bare = (b, a) if loose_a else (a, b)
+            return CheckResult(
+                rule=label,
+                status="fail",
+                detail=f"pin {pin}: {bare} is connected to nothing, {wired} is wired",
+            )
+
+    # A net carried by BOTH parts must map to itself. Without this the rule is graph
+    # isomorphism, which is invariant under relabelling, so any permutation passed --
+    # a VCC/GND swap included.
+    shared = set(on_a.values()) & set(on_b.values())
+    forward: dict[str, str] = {}
+    backward: dict[str, str] = {}
+    for pin in sorted(on_a):
+        x, y = on_a[pin], on_b[pin]
+        if x in floating and y in floating:
+            continue
+        if (x in shared or y in shared) and x != y:
+            return CheckResult(
+                rule=label,
+                status="fail",
+                detail=(
+                    f"pin {pin}: {a} is on {x} where {b} is on {y}, and both parts use "
+                    f"{x if x in shared else y} -- a net they share must line up"
+                ),
+            )
+        if forward.setdefault(x, y) != y:
+            return CheckResult(
+                rule=label,
+                status="fail",
+                detail=(
+                    f"pin {pin}: {a} on {x} pairs with {b} on {y} here, but with "
+                    f"{forward[x]} on another pin"
+                ),
+            )
+        if backward.setdefault(y, x) != x:
+            return CheckResult(
+                rule=label,
+                status="fail",
+                detail=(
+                    f"pin {pin}: {b} on {y} pairs with {a} on {x} here, but with "
+                    f"{backward[y]} on another pin"
+                ),
+            )
+    if not forward:
+        # Two pinless parts, or two entirely unwired ones, paired nothing. Returning
+        # green there is what check.py's own docstring calls "how a contract stops
+        # protecting anything" -- an earlier fix to the presence check turned a
+        # wrongly-worded failure into a genuinely vacuous pass.
+        return CheckResult(
+            rule=label,
+            status="skipped",
+            detail=f"{a} and {b} have no wired pins between them; nothing was compared",
+        )
+    return CheckResult(rule=label, status="pass", detail=f"{len(forward)} nets paired")
 
 
 @checks(Unknown)

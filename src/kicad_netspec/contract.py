@@ -12,7 +12,7 @@ Pins are named by function wherever the symbol offers one -- ``U1.VI`` rather th
 so an assertion written against a number can be satisfied by the very defect it was meant
 to catch.
 
-    from kicad_netspec import Spec, net, polarity, forbid
+    from kicad_netspec import Spec, forbid, mirrors, net, polarity, through
 
     board = Spec(
         source="hardware/board.kicad_sch",
@@ -21,6 +21,8 @@ to catch.
             net("+3V3", ["U1.VO", "C2.1"]),
             polarity("C1", plus="VIN", minus="GND"),
             forbid("VIN", "GND"),
+            through("GND", "NT1", "GNDPWR"),   # the only path between two grounds
+            mirrors("U2", "U3"),               # two channels, wired the same
         ],
     )
 """
@@ -34,12 +36,15 @@ from typing import Any, ClassVar
 
 __all__ = [
     "Forbid",
+    "Mirrors",
     "Net",
+    "Through",
     "Unknown",
     "Polarity",
     "Rule",
     "Spec",
     "forbid",
+    "mirrors",
     "net",
     "polarity",
 ]
@@ -195,6 +200,146 @@ class Forbid(Rule):
 
 
 @dataclass(frozen=True)
+class Through(Rule):
+    """Two nets are joined, and joined **through this part**.
+
+    The assertion for a series element that is meant to be the only path between two
+    nets: a fuse, a ferrite, a sense resistor, a net tie separating a logic ground from a
+    power ground. Bypassing one, or paralleling it, leaves a netlist that reads as
+    perfectly ordinary -- both nets exist, everything is connected, ERC is silent.
+
+    **This asserts pin membership, not conduction.** A netlist says which pins are on
+    which nets and nothing about what a part does between them, so a four-pin package
+    with a pin on each net satisfies this whether it is a resistor or an optocoupler.
+    Reading it as "current flows here" is the reader's inference, not netspec's claim.
+
+    ``only=True`` by default, because that is what makes a star ground assertable: a
+    second component bridging the same two nets is a ground loop, and it is legal wiring.
+    Set it False where parts really do sit in parallel.
+
+    **``only`` sees single-component bridges.** A path through two parts in series --
+    ``GND -R8- MID -R9- GNDPWR`` -- is a ground loop it will not report. Searching
+    further was tried and rejected: on a real board, a two-component search finds
+    ``GND -U1- +12V -J1- GNDPWR`` and calls a correct design looped, because every rail
+    reaches every other through the power tree. A check that fires on good boards is
+    worse than one with a stated edge.
+    """
+
+    ref: str
+    nets: tuple[str, str]
+    only: bool = True
+
+    kind: ClassVar[str] = "through"
+
+    def __post_init__(self) -> None:
+        # Arity on the dataclass, like Forbid's: it is exported and isolate.py rebuilds
+        # it from JSON, so the helper is not the only way in. Unguarded, a three-net
+        # tuple reached __str__ and crashed with a traceback under exit 1.
+        if len(self.nets) != 2:
+            raise ValueError(f"through() joins exactly two nets, got {len(self.nets)}")
+        if self.nets[0] == self.nets[1]:
+            raise ValueError(f"through() needs two different nets, got {self.nets[0]!r} twice")
+        if not self.ref:
+            raise ValueError("through() needs a part to bridge them")
+
+    def net_names(self) -> tuple[str, ...]:
+        return self.nets
+
+    def describe(self) -> dict[str, Any]:
+        # Sorted, like forbid: "R bridges A and B" and "R bridges B and A" are one
+        # assertion and must not read as two when two reports are aligned.
+        ordered = sorted(self.nets)
+        return {
+            "subject": json.dumps([self.ref, *ordered]),
+            "part": self.ref,
+            "nets": ordered,
+            "only": self.only,
+        }
+
+    def __str__(self) -> str:
+        a, b = self.nets
+        sole = " and only through it" if self.only else ""
+        return f"{a} reaches {b} through {self.ref}{sole}"
+
+
+@dataclass(frozen=True)
+class Mirrors(Rule):
+    """Two parts are wired to the same shape.
+
+    For a design built from a repeated block -- a dual driver, a per-phase leg, a bank of
+    identical sensors -- this says the instances agree. It is the highest-leverage thing
+    a contract can say per character, because one line covers a whole channel.
+
+    Structural, not textual: the parts mirror when the pin-wise mapping between their
+    nets is a **bijection**, and a net carried by *both* parts maps to itself. Pin 1 of
+    each may sit on different nets -- that is the point of a channel -- so long as every
+    pin agrees about which net of the other it corresponds to. That needs no channel
+    index and no string surgery on net names, which the first design of this rule
+    required.
+
+    The shared-net clause is load-bearing and was missing at first. Without it the rule
+    is graph isomorphism, which is invariant under relabelling, so **every** permutation
+    of one part's pin-to-net map passed -- including a VCC/GND swap, the exact defect
+    class this project exists to catch.
+
+    A pin connected to nothing does not pair with a wired one either. KiCad names each
+    floating pin uniquely (``unconnected-(U3-IN-Pad1)``), so to a bare bijection a
+    dangling pin was just another distinct net and a part with every pin unwired mirrored
+    a fully wired one.
+
+    It compares two *parts*. A block is several rules, one per corresponding pair; it
+    cannot see a change that leaves both instances equally wrong.
+
+    **The shared-net clause is the only anchor there is, so where two instances share no
+    net this rule is pure isomorphism and a permuted channel passes.** Every permutation
+    of one part's pin-to-net map, at every pin count:
+
+    ======  ==========================  ==========================
+    pins    no net shared               two nets shared
+    ======  ==========================  ==========================
+    3       6/6 permutations pass       1/6 pass
+    4       24/24 pass                  2/24 pass
+    8       40320/40320 pass            720/40320 pass
+    ======  ==========================  ==========================
+
+    Per-channel supplies are not exotic -- an isolated gate driver, a bootstrap
+    half-bridge leg, a per-phase floating rail -- and two such instances share nothing, so
+    a VCC/GND swap between them mirrors happily. Nothing in a netlist can anchor them:
+    the correspondence lives in a naming convention, and reading one would be the string
+    surgery this rule exists to avoid. **Use it where instances share a rail**, which is
+    the common case and the one the real board it was built against has.
+
+    It also **pairs pins by number**, not by function -- the one rule in this vocabulary
+    that does, against the advice at the top of this module. Two instances of the same
+    die in differently numbered symbols mirror while their functions disagree.
+
+    A cost worth knowing: two instances that touch each other cannot mirror, because the
+    net linking them is shared and so must map to itself. Cascaded gain stages and
+    resistor ladders are excluded by design.
+    """
+
+    parts: tuple[str, str]
+
+    kind: ClassVar[str] = "mirrors"
+
+    def __post_init__(self) -> None:
+        if len(self.parts) != 2:
+            raise ValueError(f"mirrors() compares exactly two parts, got {len(self.parts)}")
+        if self.parts[0] == self.parts[1]:
+            raise ValueError(f"{self.parts[0]!r} always mirrors itself")
+
+    def net_names(self) -> tuple[str, ...]:
+        return ()
+
+    def describe(self) -> dict[str, Any]:
+        return {"subject": json.dumps(sorted(self.parts)), "parts": sorted(self.parts)}
+
+    def __str__(self) -> str:
+        a, b = self.parts
+        return f"{a} and {b} are wired to the same shape"
+
+
+@dataclass(frozen=True)
 class Unknown(Rule):
     """A rule this netspec has no vocabulary for, carried so it can be reported.
 
@@ -322,6 +467,16 @@ def polarity(
 def forbid(*nets: str) -> Forbid:
     """Assert two or more nets never merge."""
     return Forbid(nets=tuple(nets))
+
+
+def through(a: str, ref: str, b: str, *, only: bool = True) -> Through:
+    """Assert that ``a`` reaches ``b`` through ``ref``, and by default only through it."""
+    return Through(ref=ref, nets=(a, b), only=only)
+
+
+def mirrors(a: str, b: str) -> Mirrors:
+    """Assert two parts are wired to the same shape."""
+    return Mirrors(parts=(a, b))
 
 
 def load(path: str, *, attribute: str | None = None) -> Spec:
