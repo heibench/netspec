@@ -181,7 +181,7 @@ being handed a shell by a verification tool.
 
 - **[partspec](https://github.com/heibench/partspec)** — mechanical CAD parts vs declared intent
 - **netspec** — PCB nets vs declared intent
-- **[gerberdiff](https://github.com/CameronBrooks11/gerberdiff)** — fabrication output geometry
+- **[gerberdiff](https://github.com/heibench/gerberdiff)** — fabrication output geometry
 
 ## Not this
 
