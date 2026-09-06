@@ -297,3 +297,24 @@ def test_every_subcommand_that_needs_an_engine_agrees_on_exit_4(monkeypatch) -> 
     schematic = str(Path(__file__).parent / "fixtures" / "good_ldo.kicad_sch")
     for argv in (["doctor"], ["netlist", schematic]):
         assert cli.main(argv) == cli.EXIT_ENVIRONMENT, argv
+
+
+def test_an_environment_fault_is_branchable_on_the_structured_surface() -> None:
+    """D10.2 (#26). D10 asks for a field a consumer can branch on, and it is here.
+
+    Not in a report — an environment fault raises before a netlist is read, so there
+    is none. On the MCP surface, which is the structured consumer (D18), the fault
+    carries `report_unavailable` beside the exit code and its plain-language meaning.
+    A silently missing key would be indistinguishable from one an agent forgot to read,
+    which is why it is named rather than implied by absence.
+    """
+    from kicad_netspec.mcp import _MEANING, _with_report
+
+    fault = _with_report({"exit_code": 4, "output": "", "error": "no working kicad-cli found"})
+    assert fault["report_unavailable"], "the fault must be a key, not an absence"
+    assert "report" not in fault, "there is no report to return, and none may be invented"
+    assert _MEANING[4]
+
+    ok = _with_report({"exit_code": 0, "output": '{"command": "check", "schema": 1}'})
+    assert "report_unavailable" not in ok, "the key must not appear on a run that reported"
+    assert ok["report"]["command"] == "check"

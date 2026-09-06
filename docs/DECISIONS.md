@@ -134,6 +134,41 @@ what the tool claims it checked.
 Unnamed candidates (`PATH`, Flatpak, macOS, Windows) still fall through: nobody asked
 for those specifically, so trying the next one is the whole point.
 
+### D10.2 — the branchable field lives on the MCP surface, not in a report (issue #26)
+
+D10 says the fault is "carried in the report as a field a consumer can branch on, not as
+prose in a message". D26 then put `error` in `Verdict` and in the exit map, and **nothing
+returns it** — an environment fault raises before a netlist is read, so there is no
+report to compute a verdict from. That reads as an unmet requirement. It is not one, and
+the reason is worth stating rather than leaving a reader to rediscover.
+
+**D10 was adopted from partspec, and one thing did not come with it.** partspec persists
+reports to deterministic paths, so a run that fails and writes nothing leaves the
+*previous* run's `verdict: "pass"` standing on disk — which is why the fault must appear
+as a field there, and why partspec writes a placeholder before any target runs
+(its #358). netspec's `check --format json` prints to **stdout**. Absence is per
+invocation, cannot be mistaken for a stale success, and coincides exactly with exit `4`.
+The failure D10's sentence guards against does not arise here.
+
+**The structured consumer is MCP (D18), and it already carries the field.** Measured:
+
+```
+exit_code            4
+meaning              "environment fault ..."
+report_unavailable   "netspec could not run; see error"
+```
+
+`report_unavailable` is the branchable field D10 asks for, named so a missing key cannot
+be confused with a key an agent forgot to read. `mcp.py::_with_report` cites D10 for
+exactly this.
+
+So D10 stands, and its "in the report" is narrowed to **"in the structured surface"**.
+An error *document* on the raw CLI path — a `verdict: "error"` envelope with no results —
+is deliberately not added: it would give a consumer a second thing to parse where an
+empty stdout beside exit `4` already answers, and every field in it would restate the
+exit code. If netspec ever persists reports to a path, this decision is void and the
+placeholder question returns with it.
+
 ## D11 — Nets are compared structurally, not by name
 
 KiCad auto-names unlabelled nets after their own contents (`Net-(C1-Pad1)`), so changing
