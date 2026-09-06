@@ -129,9 +129,11 @@ def test_a_part_absent_from_the_design_is_skipped_not_failed() -> None:
     """D9's taxonomy: a rule naming a part that is not there was not evaluated. Matches
     _check_polarity, which these two diverged from silently."""
     assert _status(mirrors("U2", "U9"), netlist=_two_channels()) == ["skipped"]
-    assert (
-        check_spec(Spec(source="b", rules=[mirrors("U2", "U9")]), _two_channels()).verdict == "fail"
-    ), "skipped is still not green"
+    verdict = check_spec(Spec(source="b", rules=[mirrors("U2", "U9")]), _two_channels()).verdict
+    assert verdict != "pass", "skipped is still not green"
+    assert verdict == "incomplete", (
+        "the test name says not failed; before A2 there was no such verdict"
+    )
 
 
 def test_mirrors_is_symmetric() -> None:
@@ -246,7 +248,8 @@ def test_mirroring_nothing_is_not_a_pass() -> None:
 
     assert report.results[0].status == "skipped"
     assert "nothing was compared" in report.results[0].detail
-    assert report.verdict == "fail", "skipped is not green"
+    assert report.verdict != "pass", "skipped is not green"
+    assert report.verdict == "incomplete"
 
 
 def test_a_permutation_passes_when_the_parts_share_no_net() -> None:

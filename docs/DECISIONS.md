@@ -320,7 +320,8 @@ a fresh read of a design on disk. Nothing is held between calls.
   project exists to catch; it would be indefensible to ship it in the tool that catches
   it.
 * The exit code is part of the contract — ``0`` clean, ``1`` a finding about the design,
-  ``4`` an environment fault. A subprocess returns the CLI's own, unlaundered, and each
+  ``2`` could not evaluate, ``4`` an environment fault, ``64`` usage (D26). A subprocess
+  returns the CLI's own, unlaundered, and each
   reply carries a plain-language ``meaning`` so an agent cannot mistake "I could not
   look" for "your board is broken".
 
@@ -767,6 +768,74 @@ Both are symmetric in their arguments and key accordingly (D23). Both refuse a w
 tuple on the dataclass, not only in the helper, because ``isolate.py`` rebuilds them from
 JSON — the same reason ``Forbid`` carries that guard. An absent part is ``skipped``,
 matching ``polarity`` and D9's taxonomy, which the first version diverged from silently.
+
+## D26 — Three verdicts, and exit `2` means "could not tell" (A1, A2)
+
+Resolves the two adjudications recorded at <https://heibench.com/adjudications.html>.
+Both are about the same missing idea, which is why they are decided together.
+
+**A2 — there was no verdict for "could not tell."** `Verdict` was
+`Literal["pass", "fail"]`, and the report was green only when every rule was green, so a
+`skipped` or `unsupported` rule collapsed into `fail`. netspec said **the board is
+wrong** when the truth was **netspec could not check it**. D9 already had four
+*statuses* and said only `pass` is green; the verdict above them could not express what
+they distinguished.
+
+That is the org contract's founding property (§2.1), violated in a tool whose purpose is
+enforcing it. The tests said so out loud before the type could:
+`test_a_part_absent_from_the_design_is_skipped_not_failed` asserted
+`verdict == "fail"`. The name and the assertion contradicted each other, because `fail`
+was the only non-green value on offer.
+
+**A1 — exit `2` meant two different things.** `EXIT_USAGE = 2` here;
+`Verdict.INCOMPLETE` maps to `2` in partspec, which puts usage at `64` (`EX_USAGE`). A
+consumer branching on `2` across both tools read "you invoked me wrong" as "I could not
+decide". CI and agents are exactly the consumers §5 promises a stable exit code to.
+
+### Decided
+
+netspec follows partspec. `2` is where the third verdict belongs, and usage has a
+conventional code of its own:
+
+| exit | verdict | meaning |
+|---|---|---|
+| `0` | `pass` | every rule passed |
+| `1` | `fail` | a finding about the design |
+| `2` | `incomplete` | netspec could not evaluate part of the contract |
+| `4` | `error` | environment fault — not a verdict on the design (D10) |
+| `64` | — | usage (`EX_USAGE`) |
+
+**`fail` outranks `incomplete`.** A real violation is a statement about the design and
+stays one even when some other rule could not be evaluated. The reverse would let one
+unsupported rule mask a genuine finding.
+
+**An empty contract is `fail`, not `incomplete`.** A contract that asserts nothing is a
+defect in the contract, not something netspec was unable to determine. partspec has a
+separate `EMPTY` at `3`; netspec does not adopt it, because the synthetic "this contract
+asserts something" result already says it, and a code nothing branches on is vocabulary
+without a consumer.
+
+**`approximate` is still absent**, per D9. Adopting partspec's exit codes is not
+adopting its interval epistemics; connectivity is discrete.
+
+### What this breaks
+
+A caller treating `2` as "bad arguments" now sees it for a contract netspec could not
+fully evaluate, and usage moved to `64`. A gate written as `[ $? -eq 0 ]` is unaffected.
+A gate written as `[ $? -ne 1 ]` to mean "fine" was already wrong and is now visibly so.
+
+Released in 0.9.0. This is the reason it is a minor bump and not a patch.
+
+### Not closed by this
+
+D10 asks for the environment fault to be carried **as a field a consumer can branch on**,
+not only as an exit code. `error` is now in the vocabulary and in the exit map, but
+nothing returns it: an environment fault raises before a netlist is read, so there is no
+report to compute a verdict from. Emitting an error *document* is a schema question and
+is left open rather than quietly assumed done.
+
+A3 — gerberdiff has no third state at all — is untouched. Its `has_changes` is still
+`boolean`. This decision sets the vocabulary that fix should follow.
 
 ## D14 — Name: `netspec`
 
