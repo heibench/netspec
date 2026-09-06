@@ -254,3 +254,46 @@ def test_the_mcp_check_tool_states_the_contract_trust_boundary() -> None:
     text = (SRC / "mcp.py").read_text(encoding="utf-8")
     assert "as trustworthy as the contract" in text
     assert mcp.build_server  # the tool this describes still exists
+
+
+# -- environment faults reach the exit-4 handler (#18) -----------------------------------------
+
+
+def test_discovery_failure_is_an_environment_fault() -> None:
+    """``KiCadNotFound`` must be catchable as ``EnvironmentError_``.
+
+    ``main`` converts ``EnvironmentError_`` to exit 4 in one place. As a sibling rather
+    than a subclass, a discovery failure escaped that handler at any call site that did
+    not wrap it, and surfaced as a traceback at exit 1 -- which is EXIT_VIOLATION, the
+    code reserved for "the design is wrong".
+    """
+    from kicad_netspec.oracle import EnvironmentError_, KiCadNotFound
+
+    assert issubclass(KiCadNotFound, EnvironmentError_)
+
+
+def test_doctor_reports_a_missing_engine_as_an_environment_fault(monkeypatch) -> None:
+    """``doctor`` is the first command run on a new machine, and reaches discovery directly."""
+    from kicad_netspec import cli
+    from kicad_netspec.oracle import KiCadNotFound
+
+    def _no_engine(*_args, **_kwargs):
+        raise KiCadNotFound("no working kicad-cli found")
+
+    monkeypatch.setattr("kicad_netspec.cli.find_kicad_cli", _no_engine)
+    assert cli.main(["doctor"]) == cli.EXIT_ENVIRONMENT
+
+
+def test_every_subcommand_that_needs_an_engine_agrees_on_exit_4(monkeypatch) -> None:
+    """A missing engine must never be distinguishable from a finding, in any command."""
+    from kicad_netspec import cli
+    from kicad_netspec.oracle import KiCadNotFound
+
+    def _no_engine(*_args, **_kwargs):
+        raise KiCadNotFound("no working kicad-cli found")
+
+    monkeypatch.setattr("kicad_netspec.cli.find_kicad_cli", _no_engine)
+    monkeypatch.setattr("kicad_netspec.cli.Cli10Backend", _no_engine)
+    schematic = str(Path(__file__).parent / "fixtures" / "good_ldo.kicad_sch")
+    for argv in (["doctor"], ["netlist", schematic]):
+        assert cli.main(argv) == cli.EXIT_ENVIRONMENT, argv
