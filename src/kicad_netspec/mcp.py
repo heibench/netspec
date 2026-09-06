@@ -12,7 +12,8 @@ that are load-bearing rather than stylistic:
   version while reporting on the new one — a stale answer presented as fresh, which is
   the exact failure this project exists to catch. A process per call makes it impossible.
 - The exit code is part of the contract: ``0`` clean, ``1`` a finding about the design,
-  ``4`` an environment fault. A subprocess returns the CLI's own, unlaundered.
+  ``2`` could not evaluate, ``4`` an environment fault, ``64`` usage. A subprocess
+  returns the CLI's own, unlaundered.
 
 **``guard`` is deliberately not exposed** (D18). It runs an arbitrary command, and an
 agent driving this server can already run commands; handing it a shell through a
@@ -101,7 +102,8 @@ def _with_report(result: dict[str, Any]) -> dict[str, Any]:
 _MEANING = {
     0: "clean",
     1: "a finding about the design",
-    2: "usage error",
+    2: "netspec could not evaluate part of the contract; this is not a finding",
+    64: "usage error",
     4: "environment fault -- KiCad could not be run; this says nothing about the design",
 }
 

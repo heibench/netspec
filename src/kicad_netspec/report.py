@@ -105,10 +105,11 @@ def _why(verdict: str, counts: dict[str, int]) -> str:
     """
     if verdict == "pass":
         return "every rule passed"
-    not_green = [s for s in ("fail", "skipped", "unsupported") if counts[s]]
     if not any(counts.values()):
         return "the contract asserted nothing"
-    return "not green: " + ", ".join(f"{counts[s]} {s}" for s in not_green)
+    not_green = [s for s in ("fail", "skipped", "unsupported") if counts[s]]
+    lead = "could not be evaluated: " if verdict == "incomplete" else "not green: "
+    return lead + ", ".join(f"{counts[s]} {s}" for s in not_green)
 
 
 def _result(result: CheckResult) -> dict[str, Any]:

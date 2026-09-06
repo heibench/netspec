@@ -48,7 +48,8 @@ def test_polarity_on_an_absent_part_is_skipped_not_passed() -> None:
     spec = Spec(source="x", rules=[polarity("C9", plus="VIN", minus="GND")])
     report = check_spec(spec, _rail())
     assert _status(spec, _rail()) == ["skipped"]
-    assert report.verdict == "fail", "skipped is not green"
+    assert report.verdict != "pass", "skipped is not green"
+    assert report.verdict == "incomplete", "and it is not a finding about the board either"
 
 
 # -- nets ------------------------------------------------------------------------------

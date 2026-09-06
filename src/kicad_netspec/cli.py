@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from kicad_netspec import __version__, contract, snapshot
-from kicad_netspec.check import CheckReport, check_spec
+from kicad_netspec.check import CheckReport, Verdict, check_spec
 from kicad_netspec.diff import NetlistDiff, diff_netlists
 from kicad_netspec.isolate import ContractError, load_isolated
 from kicad_netspec.model import Netlist
@@ -29,8 +29,20 @@ from kicad_netspec.report import check_report
 
 EXIT_OK = 0
 EXIT_VIOLATION = 1
-EXIT_USAGE = 2
+EXIT_INCOMPLETE = 2
 EXIT_ENVIRONMENT = 4
+EXIT_USAGE = 64
+"""EX_USAGE. 2 used to mean this, which is what partspec calls INCOMPLETE -- a consumer
+branching on 2 across the two tools read "you invoked me wrong" as "I could not
+decide" (A1). netspec follows partspec, because 2 is where the third verdict belongs
+and usage has a conventional code of its own."""
+
+_EXIT: dict[Verdict, int] = {
+    "pass": EXIT_OK,
+    "fail": EXIT_VIOLATION,
+    "incomplete": EXIT_INCOMPLETE,
+    "error": EXIT_ENVIRONMENT,
+}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -267,7 +279,7 @@ def _check(args: argparse.Namespace) -> int:
     else:
         print(f"{source}")
         _print_check(report)
-    return EXIT_OK if report.verdict == "pass" else EXIT_VIOLATION
+    return _EXIT[report.verdict]
 
 
 def _print_rules(report: RuleReport, label: str) -> None:

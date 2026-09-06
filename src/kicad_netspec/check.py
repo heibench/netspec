@@ -36,7 +36,7 @@ from kicad_netspec.resolve import Resolved, resolve_spec
 __all__ = ["CHECKERS", "CheckReport", "CheckResult", "check_spec", "checks"]
 
 Status = Literal["pass", "fail", "unsupported", "skipped"]
-Verdict = Literal["pass", "fail"]
+Verdict = Literal["pass", "fail", "incomplete", "error"]
 
 
 @dataclass(frozen=True)
@@ -77,10 +77,30 @@ class CheckReport:
     def verdict(self) -> Verdict:
         """Green only when there was something to check and every rule passed.
 
+        Three outcomes, because two cannot carry the difference (A2). A rule that was
+        *skipped* or *unsupported* was not evaluated, so calling the report ``fail``
+        said the board was wrong when the truth was that netspec could not check it --
+        the founding property of the org contract, violated in the tool that exists to
+        enforce it.
+
+        ``fail`` outranks ``incomplete``: a real violation is a statement about the
+        design, and it stays one even when some other rule could not be evaluated.
+
         A report with no results is not green: ``all([])`` is ``True``, so an empty
-        contract would otherwise exit 0 while protecting nothing.
+        contract would otherwise exit 0 while protecting nothing. It is ``fail`` rather
+        than ``incomplete`` -- a contract that asserts nothing is a defect in the
+        contract, not something netspec was unable to determine.
+
+        ``error`` is in the vocabulary for an environment fault (D10) and is never
+        returned from here; nothing was read, so there is no report to compute it from.
         """
-        return "pass" if self.results and all(r.green for r in self.results) else "fail"
+        if not self.results:
+            return "fail"
+        if any(r.status == "fail" for r in self.results):
+            return "fail"
+        if any(r.status in ("unsupported", "skipped") for r in self.results):
+            return "incomplete"
+        return "pass"
 
     def of_status(self, status: Status) -> tuple[CheckResult, ...]:
         return tuple(r for r in self.results if r.status == status)

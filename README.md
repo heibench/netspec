@@ -121,8 +121,10 @@ CONTRACT
         pin 1 is on GND, expected VIN  -- C1 IS REVERSED. ERC does not check this.
 ```
 
-Exit codes are the contract: `0` clean, `1` a violation of the design, `4` an
-environment fault -- a missing engine is never reported as a broken board.
+Exit codes are the contract: `0` clean, `1` a violation of the design, `2` netspec
+could not evaluate part of the contract, `4` an environment fault, `64` usage. A
+missing engine is never reported as a broken board, and neither is a rule netspec
+could not check -- `2` is not a finding, and it is not `0` either.
 
 ## In CI
 
