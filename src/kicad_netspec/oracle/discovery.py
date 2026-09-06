@@ -14,6 +14,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from kicad_netspec.oracle.base import EnvironmentError_
+
 __all__ = ["KiCadNotFound", "KiCadCli", "find_kicad_cli"]
 
 ENV_VAR = "NETSPEC_KICAD_CLI"
@@ -31,10 +33,16 @@ _WINDOWS_GLOBS = (
 )
 
 
-class KiCadNotFound(RuntimeError):
+class KiCadNotFound(EnvironmentError_):
     """No usable ``kicad-cli`` on this machine.
 
     Always an environment fault, never a statement about a design.
+
+    A subclass of :class:`EnvironmentError_` so that ``main``'s handler converts it to
+    exit 4 wherever discovery is reached, including direct callers like ``doctor`` that
+    do not wrap it themselves.  As a sibling it escaped that handler and surfaced as an
+    unhandled traceback at exit 1 -- which is ``EXIT_VIOLATION``, the one code that says
+    the design is wrong.
     """
 
 
