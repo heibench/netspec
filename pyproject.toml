@@ -1,6 +1,6 @@
 [project]
 name = "kicad-netspec"
-version = "0.8.0"
+version = "0.9.0"
 description = "Verify PCB connectivity against declared engineering intent, using KiCad as the oracle."
 readme = "README.md"
 requires-python = ">=3.12"
