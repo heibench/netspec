@@ -81,6 +81,13 @@ def find_kicad_cli(*, explicit: str | None = None) -> KiCadCli:
 
     Order: explicit argument, ``$NETSPEC_KICAD_CLI``, ``PATH``, Flatpak, macOS bundle,
     Windows install. Raises :class:`KiCadNotFound` listing everything tried.
+
+    An engine named explicitly -- by argument or by ``$NETSPEC_KICAD_CLI`` -- fails
+    closed. It is set to select a *particular* engine (a second KiCad, a build under
+    test, a pinned CI toolchain), so falling through to another one would adjudicate
+    against a different oracle than the caller asked for, and ``can do`` is computed
+    from that engine's version. A typo or a stale CI path would otherwise produce a
+    green run with nothing said anywhere.
     """
     tried: list[str] = []
 
@@ -88,12 +95,23 @@ def find_kicad_cli(*, explicit: str | None = None) -> KiCadCli:
         probed = _probe(argv)
         if probed is not None:
             return KiCadCli(argv=tuple(argv), version=probed, origin=origin)
+        if origin in _NAMED_ORIGINS:
+            raise KiCadNotFound(
+                f"{_NAMED_ORIGINS[origin]} names a kicad-cli that does not work: "
+                f"{' '.join(argv)}\n"
+                "It was set to choose a specific engine, so netspec will not fall back "
+                "to another one. Correct it, or unset it to let discovery choose."
+            )
         tried.append(f"{origin}: {' '.join(argv)}")
 
     raise KiCadNotFound(
         "no working kicad-cli found. Set "
         f"{ENV_VAR}=/path/to/kicad-cli, or install KiCad. Tried:\n  " + "\n  ".join(tried)
     )
+
+
+_NAMED_ORIGINS = {"explicit": "the engine passed to find_kicad_cli()", "env": ENV_VAR}
+"""Origins the caller chose deliberately. These fail closed rather than falling through."""
 
 
 def _candidates(explicit: str | None) -> list[tuple[list[str], str]]:

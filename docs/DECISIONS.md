@@ -117,6 +117,23 @@ as disproven.
 
 Carried in the report as a field a consumer can branch on, not as prose in a message.
 
+### D10.1 — An explicitly named engine fails closed (amendment, issue #17)
+
+`$NETSPEC_KICAD_CLI`, and the `explicit` argument behind it, select a *particular*
+engine: a second KiCad, a build under test, a pinned CI toolchain. Discovery used to
+treat them as the first entry in a candidate list and fall through when they did not
+probe, so a typo, a stale CI path, or a bind-mount that did not appear produced a green
+run adjudicated against a different oracle, with nothing said on stdout, stderr, or in
+the report.
+
+A named engine that cannot be used is therefore an environment fault under D10 —
+exit 4, naming the path and why it was rejected — not a hint to be improved upon.
+`can do` is computed from the engine's version, so substituting one silently changes
+what the tool claims it checked.
+
+Unnamed candidates (`PATH`, Flatpak, macOS, Windows) still fall through: nobody asked
+for those specifically, so trying the next one is the whole point.
+
 ## D11 — Nets are compared structurally, not by name
 
 KiCad auto-names unlabelled nets after their own contents (`Net-(C1-Pad1)`), so changing
