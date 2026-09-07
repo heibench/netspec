@@ -15,7 +15,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.27,<2"]
+mcp = ["mcp>=1.27,<3"]
 
 [project.scripts]
 netspec = "kicad_netspec.cli:main"
