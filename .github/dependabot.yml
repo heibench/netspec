@@ -1,0 +1,52 @@
+# Dependabot — because nothing else watches these pins.
+#
+# netspec was the only tool repo in the org without this. Its action pins, its
+# committed `uv.lock` and its pre-commit hook revs were all unwatched, and the
+# only signal a pin has rotted is usually a deprecation warning buried in the
+# log of a green job.
+#
+# Grouped rather than one PR per dependency: a batch CI has run as a batch is
+# the thing being merged, and several separate green PRs do not show that the
+# updates work together. The `ok` gate decides whether each batch is safe.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # `uv`, not `pip`: the lockfile is committed, so the lock is the thing that
+  # needs updating and `uv lock` is what updates it honestly.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: "build"
+
+  # Hook revs rot exactly like action pins do, and nothing here was watching
+  # them either.
+  #
+  # ruff is deliberately NOT ignored here, unlike in a sibling repo where an
+  # equality gate would refuse a half-bump. This repo has no such gate and the
+  # two pins have already drifted apart -- `ruff>=0.11` resolves to 0.16.5
+  # while `.pre-commit-config.yaml` names v0.11.12 -- so a bump toward the
+  # resolved version narrows the split rather than widening it. Closing it
+  # properly is a separate issue.
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      hooks:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
