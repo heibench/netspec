@@ -27,6 +27,7 @@ The ``mcp`` dependency is an extra, imported lazily inside :func:`build_server`,
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -205,15 +206,52 @@ def build_server() -> FastMCP:
     return server
 
 
+_EXTRA_MISSING = "netspec-mcp needs the mcp extra: pip install 'kicad-netspec[mcp]'"
+
+
+def _diagnose_import_failure(exc: ImportError, *, mcp_installed: bool) -> str:
+    """Say which import failure this was, without inventing the other one.
+
+    Two different failures arrive at the same `except ImportError`, and only one of them
+    is a missing dependency. Under `mcp` 2.x, `mcp/server/fastmcp.py` is a stub that
+    raises `ModuleNotFoundError` -- a subclass of `ImportError` -- naming the rename to
+    `MCPServer`, the new import path, the migration guide and the `mcp<2` escape hatch.
+    Answering that with "install the extra" tells a user to install what they already
+    have: a plausible cause substituted for the real one, which the org contract's §2.3
+    forbids.
+
+    So the extra is blamed only when the `mcp` package is genuinely absent. Otherwise the
+    import's own words are passed through -- netspec knows that the import failed and not
+    why, and upstream does know.
+
+    **The second message claims only what was measured, which is that the `mcp` package
+    itself is there.** An earlier version went further and said "this is not a missing
+    dependency", which is a categorical claim about the whole dependency tree from a
+    lookup of one name in it -- and it is false for an incomplete install, where the
+    import names a transitive dependency and the message denies one in the same breath.
+    Substituting a plausible cause for the one that was established is the defect this
+    function exists to fix; it does not get an exemption for being netspec's own.
+
+    Either way the caller still exits 4: netspec could not run, which says nothing about
+    any design (D10). It is the reason that was fabricated, not the outcome.
+    """
+    if not mcp_installed:
+        return _EXTRA_MISSING
+    return (
+        "netspec-mcp could not import the MCP server API. The mcp package itself is "
+        "installed, so the extra is not absent; netspec does not know more than that. "
+        "The import said:\n\n"
+        f"    {type(exc).__name__}: {exc}"
+    )
+
+
 def main() -> int:
     """Entry point for `netspec-mcp`."""
     try:
         server = build_server()
-    except ImportError:
-        print(
-            "netspec-mcp needs the mcp extra: pip install 'kicad-netspec[mcp]'",
-            file=sys.stderr,
-        )
+    except ImportError as exc:
+        installed = importlib.util.find_spec("mcp") is not None
+        print(_diagnose_import_failure(exc, mcp_installed=installed), file=sys.stderr)
         return 4
     server.run()
     return 0
