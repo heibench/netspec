@@ -224,14 +224,23 @@ def _diagnose_import_failure(exc: ImportError, *, mcp_installed: bool) -> str:
     import's own words are passed through -- netspec knows that the import failed and not
     why, and upstream does know.
 
+    **The second message claims only what was measured, which is that the `mcp` package
+    itself is there.** An earlier version went further and said "this is not a missing
+    dependency", which is a categorical claim about the whole dependency tree from a
+    lookup of one name in it -- and it is false for an incomplete install, where the
+    import names a transitive dependency and the message denies one in the same breath.
+    Substituting a plausible cause for the one that was established is the defect this
+    function exists to fix; it does not get an exemption for being netspec's own.
+
     Either way the caller still exits 4: netspec could not run, which says nothing about
     any design (D10). It is the reason that was fabricated, not the outcome.
     """
     if not mcp_installed:
         return _EXTRA_MISSING
     return (
-        "netspec-mcp could not import the MCP server API, and this is not a missing "
-        "dependency: the mcp package is installed. The import said:\n\n"
+        "netspec-mcp could not import the MCP server API. The mcp package itself is "
+        "installed, so the extra is not absent; netspec does not know more than that. "
+        "The import said:\n\n"
         f"    {type(exc).__name__}: {exc}"
     )
 
