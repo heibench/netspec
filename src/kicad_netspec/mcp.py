@@ -34,7 +34,7 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
 __all__ = ["build_server", "main", "run_cli"]
 
@@ -109,11 +109,11 @@ _MEANING = {
 }
 
 
-def build_server() -> FastMCP:
+def build_server() -> MCPServer:
     """Construct the MCP server. Imports `mcp` lazily; see the module docstring."""
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
-    server = FastMCP(
+    server = MCPServer(
         "netspec",
         instructions=(
             "Verify PCB connectivity against declared intent, using KiCad as the oracle. "
@@ -213,12 +213,19 @@ def _diagnose_import_failure(exc: ImportError, *, mcp_installed: bool) -> str:
     """Say which import failure this was, without inventing the other one.
 
     Two different failures arrive at the same `except ImportError`, and only one of them
-    is a missing dependency. Under `mcp` 2.x, `mcp/server/fastmcp.py` is a stub that
-    raises `ModuleNotFoundError` -- a subclass of `ImportError` -- naming the rename to
-    `MCPServer`, the new import path, the migration guide and the `mcp<2` escape hatch.
-    Answering that with "install the extra" tells a user to install what they already
-    have: a plausible cause substituted for the real one, which the org contract's §2.3
-    forbids.
+    is a missing dependency. The case that made this function necessary was a user on
+    `mcp` 2.x while netspec imported `mcp.server.fastmcp`: upstream ships that path as a
+    stub raising `ModuleNotFoundError` -- a subclass of `ImportError` -- naming the
+    rename, the new import path and the migration guide. Answering that with "install
+    the extra" tells a user to install what they already have: a plausible cause
+    substituted for the real one, which the org contract's §2.3 forbids.
+
+    netspec now imports `mcp.server.mcpserver` and requires 2.x, so the *direction* has
+    flipped: the version-mismatch failure a user hits today is a plain "No module named
+    'mcp.server.mcpserver'" from an `mcp` 1.x install, which carries no migration advice
+    of its own. This function's behaviour is unchanged and still right for it -- the
+    package is present, so the extra is not blamed, and the import's own words are passed
+    through rather than a guess about which version is installed.
 
     So the extra is blamed only when the `mcp` package is genuinely absent. Otherwise the
     import's own words are passed through -- netspec knows that the import failed and not
@@ -265,11 +272,19 @@ def tool_schema_size() -> dict[str, Any]:
     """
     import asyncio
 
+    # `list_tools` is still `async def` on mcp 2.x. Its signature READS synchronous --
+    # `(self) -> list[MCPTool]`, because the annotation is the awaited type -- so
+    # `inspect.signature` is not the way to check, and dropping the `asyncio.run` on
+    # that basis made `len(tools)` raise on a coroutine object. `iscoroutinefunction`
+    # is what answers it.
     server = build_server()
     tools = asyncio.run(server.list_tools())
-    payload = [
-        {"name": t.name, "description": t.description, "inputSchema": t.inputSchema} for t in tools
-    ]
+    # `by_alias`, because the number that matters is what goes over the wire. On mcp
+    # 2.x the Python attribute is `input_schema` and the serialised key is still the
+    # protocol's `inputSchema`; hand-building the dict from attribute names measured
+    # netspec's rendering of the tool list rather than the tool list, and broke
+    # outright when the attribute was renamed.
+    payload = [tool.model_dump(by_alias=True, exclude_none=True) for tool in tools]
     text = json.dumps(payload)
     return {"tools": len(tools), "bytes": len(text), "approx_tokens": len(text) // 4}
 

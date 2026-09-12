@@ -34,17 +34,47 @@ def test_the_tool_list_stays_inside_its_context_budget() -> None:
         f"{size['tools']} tools now cost ~{size['approx_tokens']} tokens; "
         "adding surface is a real cost to every agent that connects"
     )
+    # A ceiling alone is one-directional: a payload that lost the schemas measures
+    # smaller and passes. That is the shape this whole project refuses -- a wrong number
+    # reported as a success -- and it was reachable, because the attribute holding the
+    # schema was renamed between mcp majors.
+    #
+    # A floor is not enough either. Dropping only `inputSchema` still measures ~713
+    # tokens, comfortably between any floor set near a tenth of the payload and the
+    # 3,000 ceiling. So the assertion is equality with the wire form: the budget must
+    # be measuring the bytes the protocol sends, not a subset it happens to like.
+    tools = _tools()
+    assert size["tools"] == len(tools), "the measurement counted a different tool set"
+    expected = json.dumps([t.model_dump(by_alias=True, exclude_none=True) for t in tools])
+    assert size["bytes"] == len(expected), (
+        f"the budget measured {size['bytes']} bytes where the serialised tool list is "
+        f"{len(expected)}; it has stopped measuring what goes over the wire"
+    )
+
+
+def test_the_measured_payload_is_the_one_that_goes_over_the_wire() -> None:
+    """The budget measures the protocol's bytes, not netspec's rendering of them.
+
+    `inputSchema` is the wire key; on mcp 2.x the Python attribute behind it is
+    `input_schema`. Hand-building the dict from attribute names measured our own
+    rendering and broke outright at the rename, which is how this was noticed.
+    """
+    tools = _tools()
+    assert tools, "no tools, so this asserts nothing"
+    wire = tools[0].model_dump(by_alias=True, exclude_none=True)
+    assert "inputSchema" in wire, (
+        "the serialised tool no longer carries `inputSchema`; the budget is measuring "
+        f"something other than the protocol payload: {sorted(wire)}"
+    )
+
+
+#: The verbs this server promises. One definition, because the in-process test and the
+#: handshake test must not be able to disagree about what "the expected verbs" are.
+EXPECTED_VERBS = frozenset({"doctor", "netlist", "snapshot", "diff", "check", "gate"})
 
 
 def test_the_expected_verbs_are_present() -> None:
-    assert {t.name for t in _tools()} == {
-        "doctor",
-        "netlist",
-        "snapshot",
-        "diff",
-        "check",
-        "gate",
-    }
+    assert {t.name for t in _tools()} == set(EXPECTED_VERBS)
 
 
 def test_guard_is_not_exposed() -> None:
@@ -95,3 +125,61 @@ def test_a_usage_error_is_not_a_finding() -> None:
 def test_results_are_json_serialisable() -> None:
     """Whatever a tool returns has to survive the wire."""
     json.dumps(run_cli("--version"))
+
+
+def test_the_server_completes_a_real_handshake() -> None:
+    """Start `netspec-mcp` as a process and talk to it. Nothing else here does.
+
+    Every other test in this module calls `build_server().list_tools()` in-process,
+    which exercises registration and not the protocol. A server that constructs its
+    tools correctly and cannot complete `initialize` passes all of them -- and during
+    this port a corrupted dependency produced exactly that state, with the whole suite
+    green and the server unable to answer a client.
+
+    This is the only test that would have noticed, so it is worth the second or so it
+    costs: it asserts the handshake, the six verbs, and that the wire really carries
+    the camelCase key the budget measures.
+    """
+    import shutil
+
+    entry = shutil.which("netspec-mcp")
+    if entry is None:
+        # Same reasoning as the module-level import above: skipping is right for a
+        # contributor without the extra and wrong for CI, where a missing entry point
+        # is the failure this test exists to catch.
+        if os.environ.get("CI"):
+            pytest.fail("netspec-mcp is not on PATH; the mcp extra is not installed")
+        pytest.skip("netspec-mcp is not on PATH; the mcp extra is not installed here")
+
+    async def talk() -> tuple[list[str], list[str], int]:
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        async with (
+            stdio_client(StdioServerParameters(command=entry, args=[])) as (read, write),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            listed = await session.list_tools()
+            first = listed.tools[0].model_dump(by_alias=True, exclude_none=True)
+            wire = json.dumps(
+                [t.model_dump(by_alias=True, exclude_none=True) for t in listed.tools]
+            )
+            return [t.name for t in listed.tools], sorted(first), len(wire)
+
+    names, first_keys, wire_bytes = asyncio.run(talk())
+    assert set(names) == EXPECTED_VERBS, names
+    assert "inputSchema" in first_keys, (
+        f"the protocol did not carry `inputSchema`; the budget measures a key the wire "
+        f"does not use: {first_keys}"
+    )
+    # The budget's own number, against bytes that came back through the protocol rather
+    # than out of the same `model_dump` it is built from. Without this, both sides of
+    # the equality assertion in the budget test are netspec's rendering, and a
+    # divergence between that rendering and what the server actually sends would pass.
+    # Length rather than the string: a JSON round-trip may reorder keys within a schema
+    # without changing a byte of cost.
+    assert tool_schema_size()["bytes"] == wire_bytes, (
+        f"the budget measures {tool_schema_size()['bytes']} bytes and the protocol sent "
+        f"{wire_bytes}; the figure is not the cost a client actually pays"
+    )
