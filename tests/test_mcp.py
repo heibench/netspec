@@ -34,6 +34,31 @@ def test_the_tool_list_stays_inside_its_context_budget() -> None:
         f"{size['tools']} tools now cost ~{size['approx_tokens']} tokens; "
         "adding surface is a real cost to every agent that connects"
     )
+    # A ceiling alone is one-directional: a payload that lost the schemas measures
+    # smaller and passes. That is the shape this whole project refuses -- a wrong
+    # number reported as a success -- and it was reachable, because the attribute
+    # holding the schema was renamed between mcp majors.
+    assert size["tools"] == len(_tools()), "the measurement counted a different tool set"
+    assert size["approx_tokens"] > 100, (
+        f"~{size['approx_tokens']} tokens for {size['tools']} tools is too small to be "
+        "the real payload; the measurement has probably stopped including the schemas"
+    )
+
+
+def test_the_measured_payload_is_the_one_that_goes_over_the_wire() -> None:
+    """The budget measures the protocol's bytes, not netspec's rendering of them.
+
+    `inputSchema` is the wire key; on mcp 2.x the Python attribute behind it is
+    `input_schema`. Hand-building the dict from attribute names measured our own
+    rendering and broke outright at the rename, which is how this was noticed.
+    """
+    tools = _tools()
+    assert tools, "no tools, so this asserts nothing"
+    wire = tools[0].model_dump(by_alias=True, exclude_none=True)
+    assert "inputSchema" in wire, (
+        "the serialised tool no longer carries `inputSchema`; the budget is measuring "
+        f"something other than the protocol payload: {sorted(wire)}"
+    )
 
 
 def test_the_expected_verbs_are_present() -> None:

@@ -35,10 +35,17 @@ def test_the_core_declares_no_runtime_dependencies() -> None:
     assert _pyproject()["project"]["dependencies"] == []
 
 
-def test_the_mcp_extra_pins_below_version_2() -> None:
-    """mcp 2.x renamed FastMCP and killed nine servers in the survey behind this project."""
+def test_the_mcp_extra_pins_to_the_major_the_code_imports() -> None:
+    """One major, because the import path differs between them and only one can work.
+
+    netspec imports `mcp.server.mcpserver`, which exists on 2.x and not on 1.x. A range
+    spanning both majors resolves happily and then fails at import on whichever one the
+    resolver picked -- an install that succeeds and a tool that cannot start.
+
+    This pinned `<2` before the port, for the same reason in the other direction.
+    """
     extras = _pyproject()["project"]["optional-dependencies"]["mcp"]
-    assert any("<2" in spec for spec in extras), extras
+    assert any(">=2" in spec and "<3" in spec for spec in extras), extras
 
 
 # -- the Trusted Publishing binding ----------------------------------------------------

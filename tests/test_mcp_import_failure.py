@@ -18,6 +18,12 @@ from kicad_netspec.mcp import _diagnose_import_failure
 
 # Verbatim from mcp 2.1.1, where `mcp/server/fastmcp.py` is a stub that raises this.
 # netspec used to discard it and blame the extra instead.
+#
+# Kept although netspec now imports `mcp.server.mcpserver` and requires 2.x: the
+# property under test is "an import that moved is not an absent extra", which is what
+# the function decides, and a message this specific is the case that proved it wrong
+# once. The version-mismatch a user hits TODAY is the opposite direction and is pinned
+# below -- upstream 1.x offers no migration text, so the two are not interchangeable.
 MCP_2X_MESSAGE = (
     "No module named 'mcp.server.fastmcp'. This is mcp 2.x, where FastMCP was renamed to "
     "MCPServer (from mcp.server.mcpserver import MCPServer) and other APIs changed; see the "
@@ -42,6 +48,30 @@ def test_a_moved_symbol_is_not_reported_as_a_missing_extra() -> None:
     )
     assert "pip install" not in message
     assert MCP_2X_MESSAGE in message
+
+
+#: What an `mcp` 1.x install answers now that netspec imports the 2.x path. Plain, with
+#: no migration advice of its own -- which is the point: there is nothing to pass through
+#: except upstream's own words, and inventing the advice would be §2.3 again.
+MCP_1X_MESSAGE = "No module named 'mcp.server.mcpserver'"
+
+
+def test_a_version_that_lacks_the_module_is_not_reported_as_a_missing_extra() -> None:
+    """The direction netspec faces after the 2.x port, and the one users now hit.
+
+    `mcp` 1.x resolves, so the extra is installed and blaming it would tell someone to
+    install what they have. The import said only that the module is absent, and that is
+    all netspec may repeat -- it does not know a version was the cause.
+    """
+    message = _diagnose_import_failure(
+        ModuleNotFoundError(MCP_1X_MESSAGE, name="mcp.server.mcpserver"), mcp_installed=True
+    )
+    assert "pip install" not in message
+    assert MCP_1X_MESSAGE in message
+    assert "1.x" not in message and "2.x" not in message, (
+        "netspec named a version as the cause; find_spec established that `mcp` "
+        f"resolves and nothing more: {message}"
+    )
 
 
 def test_an_incomplete_install_is_not_told_that_nothing_is_missing() -> None:
