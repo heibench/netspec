@@ -370,10 +370,11 @@ with the absence of any tool whose name implies writing to a design.
 
 **The tool list has a budget: under 3,000 tokens, asserted in CI.** The survey behind this
 project measured KiCad MCP servers from 2,574 to 48,627 tokens of schema — the largest
-spending a quarter of a 200K window before the agent reads a file. netspec's six tools
-measure under 1,000 tokens on the wire; `tool_schema_size()` produces the exact figure
-and CI asserts the ceiling, because a number typed into prose here was stale through two
-changes to what it measured (D27). Tool surface is a cost paid by every agent that
+spending a quarter of a 200K window before the agent reads a file. `tool_schema_size()` produces the figure
+for netspec's own tools and CI asserts the ceiling. No number is written here: one was,
+and it was stale through two changes to what it measured, then replaced by a hand-typed
+bound with four bytes of headroom that four characters in a docstring would have
+falsified (D27). Tool surface is a cost paid by every agent that
 connects, and a number in CI is the only thing that keeps it from creeping.
 
 ## D19 — A contract's net names are resolved before any rule is evaluated
@@ -889,8 +890,7 @@ downloads a month. Rather than block on a PEP 541 transfer, the distribution is
 stays `netspec`. A PEP 541 request for the bare name can run in the background; if it
 succeeds, publish an alias distribution.
 
-
-## D27 — the `mcp` extra pins one major, and it is the one the code imports
+## D27 — The `mcp` extra pins one major, and it is the one the code imports
 
 D7 pinned `mcp>=1.27,<2` because a bounded pin is what stops an upstream rename killing
 the server on a fresh install. That reasoning is intact; this entry moves which major is

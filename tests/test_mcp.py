@@ -143,10 +143,15 @@ def test_the_server_completes_a_real_handshake() -> None:
     import shutil
 
     entry = shutil.which("netspec-mcp")
-    if entry is None:  # pragma: no cover - the extra is installed in CI and dev
+    if entry is None:
+        # Same reasoning as the module-level import above: skipping is right for a
+        # contributor without the extra and wrong for CI, where a missing entry point
+        # is the failure this test exists to catch.
+        if os.environ.get("CI"):
+            pytest.fail("netspec-mcp is not on PATH; the mcp extra is not installed")
         pytest.skip("netspec-mcp is not on PATH; the mcp extra is not installed here")
 
-    async def talk() -> tuple[list[str], list[str]]:
+    async def talk() -> tuple[list[str], list[str], int]:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
@@ -157,11 +162,24 @@ def test_the_server_completes_a_real_handshake() -> None:
             await session.initialize()
             listed = await session.list_tools()
             first = listed.tools[0].model_dump(by_alias=True, exclude_none=True)
-            return [t.name for t in listed.tools], sorted(first)
+            wire = json.dumps(
+                [t.model_dump(by_alias=True, exclude_none=True) for t in listed.tools]
+            )
+            return [t.name for t in listed.tools], sorted(first), len(wire)
 
-    names, first_keys = asyncio.run(talk())
+    names, first_keys, wire_bytes = asyncio.run(talk())
     assert set(names) == EXPECTED_VERBS, names
     assert "inputSchema" in first_keys, (
         f"the protocol did not carry `inputSchema`; the budget measures a key the wire "
         f"does not use: {first_keys}"
+    )
+    # The budget's own number, against bytes that came back through the protocol rather
+    # than out of the same `model_dump` it is built from. Without this, both sides of
+    # the equality assertion in the budget test are netspec's rendering, and a
+    # divergence between that rendering and what the server actually sends would pass.
+    # Length rather than the string: a JSON round-trip may reorder keys within a schema
+    # without changing a byte of cost.
+    assert tool_schema_size()["bytes"] == wire_bytes, (
+        f"the budget measures {tool_schema_size()['bytes']} bytes and the protocol sent "
+        f"{wire_bytes}; the figure is not the cost a client actually pays"
     )

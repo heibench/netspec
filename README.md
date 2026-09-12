@@ -169,10 +169,11 @@ pip install 'kicad-netspec[mcp]'
 { "mcpServers": { "netspec": { "command": "netspec-mcp" } } }
 ```
 
-`doctor` · `netlist` · `snapshot` · `diff` · `check` · `gate`. The whole tool list costs
-**under 1,000 tokens** of schema — run `python -c "from kicad_netspec.mcp import
-tool_schema_size; print(tool_schema_size())"` for the exact figure on your install — and
-CI fails if it exceeds 3,000 — surveyed KiCad MCP servers
+`doctor` · `netlist` · `snapshot` · `diff` · `check` · `gate`. **CI fails if the tool
+list exceeds 3,000 tokens of schema**, which is the only figure here that anything
+asserts; for what it costs on your install, run
+`python -c "from kicad_netspec.mcp import tool_schema_size; print(tool_schema_size())"`.
+Surveyed KiCad MCP servers
 range from 2,574 to 48,627, the largest spending a quarter of a 200K window before the
 agent reads a file.
 
