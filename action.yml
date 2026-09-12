@@ -111,7 +111,7 @@ runs:
       # finds something, and without this the comment explaining what it found would be
       # skipped exactly when it is most wanted.
       if: ${{ always() && inputs.comment == 'true' && github.event_name == 'pull_request' }}
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         script: |
           const body = process.env.NETSPEC_REPORT;
