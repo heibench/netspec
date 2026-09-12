@@ -73,9 +73,12 @@ than a discovery in 2027. Verified to fail correctly against the 10.0 branch.
 ## D7 — CLI first, MCP later, as an optional extra
 
 The CLI and its report are the product. The MCP server is an `mcp` extra whose tools are
-stateless verbs over the same code path. `mcp` is pinned `>=1.27,<2`: nine of twenty-two
+stateless verbs over the same code path. `mcp` was pinned `>=1.27,<2`: nine of twenty-two
 servers in the survey are dead on a fresh install because they pinned `mcp>=1.x` with no
 upper bound and `mcp` 2.x renamed `FastMCP`.
+
+**Superseded in part by D27**, which ports to 2.x and pins `>=2,<3`. The reason above is
+unchanged and is why the pin is bounded at all; only the major moved.
 
 Target: under 3K tokens of `tools/list` schema, measured in CI, failing the build on
 regression.
@@ -368,7 +371,9 @@ with the absence of any tool whose name implies writing to a design.
 **The tool list has a budget: under 3,000 tokens, asserted in CI.** The survey behind this
 project measured KiCad MCP servers from 2,574 to 48,627 tokens of schema — the largest
 spending a quarter of a 200K window before the agent reads a file. netspec's six tools
-measure ~834 tokens on the wire. Tool surface is a cost paid by every agent that
+measure under 1,000 tokens on the wire; `tool_schema_size()` produces the exact figure
+and CI asserts the ceiling, because a number typed into prose here was stale through two
+changes to what it measured (D27). Tool surface is a cost paid by every agent that
 connects, and a number in CI is the only thing that keeps it from creeping.
 
 ## D19 — A contract's net names are resolved before any rule is evaluated
@@ -883,3 +888,34 @@ downloads a month. Rather than block on a PEP 541 transfer, the distribution is
 **`kicad-netspec`** and the import package is `kicad_netspec`, while the console script
 stays `netspec`. A PEP 541 request for the bare name can run in the background; if it
 succeeds, publish an alias distribution.
+
+
+## D27 — the `mcp` extra pins one major, and it is the one the code imports
+
+D7 pinned `mcp>=1.27,<2` because a bounded pin is what stops an upstream rename killing
+the server on a fresh install. That reasoning is intact; this entry moves which major is
+pinned, to `>=2,<3`, and records why the obvious wider range is wrong.
+
+**Not `>=1.27,<3`**, which is what the dependency bot proposed. netspec imports
+`mcp.server.mcpserver`, which exists on 2.x and not on 1.x. A range spanning both majors
+resolves happily and then fails at import on whichever one the resolver picked -- an
+install that succeeds and a tool that cannot start. In practice resolvers take the
+newest and it would work today, so the hazard needs a lowest-resolution run or a
+pre-existing 1.x in the environment; it is still a range that describes a state the code
+cannot be in. `test_the_mcp_extra_pins_to_the_major_the_code_imports` enforces it.
+
+**What the port actually cost**, recorded because the rename was the advertised change
+and was the least of it:
+
+* `list_tools` is still `async def`. Its signature reads `(self) -> list[MCPTool]`,
+  because the annotation is the awaited type, so `inspect.signature` says the wrong
+  thing; `inspect.iscoroutinefunction` is what answers it.
+* The tool model's `inputSchema` is now `input_schema`, and the **wire key is
+  unchanged**. `tool_schema_size` hand-built its payload from attribute names, so it
+  measured netspec's rendering of the tool list rather than the tool list, and broke at
+  the rename. It dumps `by_alias=True` now, which is what a budget about wire bytes
+  should have been doing from the start.
+
+**The budget figure is produced, never typed.** `tool_schema_size()` is the only source,
+it is asserted in CI, and any published number carries the command that produced it. The
+figure stood at 834 through two renderings that changed what it measured.
