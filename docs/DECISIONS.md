@@ -371,10 +371,17 @@ with the absence of any tool whose name implies writing to a design.
 **The tool list has a budget: under 3,000 tokens, asserted in CI.** The survey behind this
 project measured KiCad MCP servers from 2,574 to 48,627 tokens of schema — the largest
 spending a quarter of a 200K window before the agent reads a file. `tool_schema_size()` produces the figure
-for netspec's own tools and CI asserts the ceiling. No number is written here: one was,
-and it was stale through two changes to what it measured, then replaced by a hand-typed
-bound with four bytes of headroom that four characters in a docstring would have
-falsified (D27). Tool surface is a cost paid by every agent that
+for netspec's own tools and CI asserts the ceiling. **No measured figure for netspec's
+own surface is written here** — the survey numbers above are someone else's
+measurements and do not move. One was: it went stale through two changes to what it
+measured, and was then replaced by a hand-typed bound with **two bytes** of headroom
+that two characters in a tool docstring would have falsified.
+
+Two, not the four a first pass wrote: `approx_tokens` is `bytes // 4`, so a measured
+3,998 bytes crosses 1,000 tokens at 4,000 and not at 4,002. Substituting the arithmetic
+that looks right for the arithmetic that is — in the sentence arguing against exactly
+that — is why this entry names the mechanism rather than trusting anyone to be careful
+(D27, org contract 2.3). Tool surface is a cost paid by every agent that
 connects, and a number in CI is the only thing that keeps it from creeping.
 
 ## D19 — A contract's net names are resolved before any rule is evaluated
