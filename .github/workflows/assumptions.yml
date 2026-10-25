@@ -12,6 +12,9 @@ on:
       - "tests/test_kicad_assumptions.py"
       - ".github/workflows/assumptions.yml"
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
