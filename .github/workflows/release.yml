@@ -122,7 +122,7 @@ jobs:
       # emits Metadata-Version 2.5 for a PEP 639 SPDX license. The `twine check` in the
       # build job did NOT catch it — uvx fetches a current twine, so the build verified
       # against a newer parser than the one that actually gates the upload.
-      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   major-tag:
     # Consumers write `uses: heibench/netspec@v0`, which is the convention for
