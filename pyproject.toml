@@ -35,6 +35,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/kicad_netspec"]
 
+# uv.lock pins this repo's dev environment, not the package's requirements, so
+# it stays out of the sdist now that it is committed.
+[tool.hatch.build.targets.sdist]
+exclude = ["uv.lock"]
+
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.11", "pyright>=1.1"]
 

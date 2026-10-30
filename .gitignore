@@ -29,7 +29,6 @@ htmlcov/
 
 # uv
 .python-version
-uv.lock
 
 # Environment
 .env
