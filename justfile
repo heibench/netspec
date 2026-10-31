@@ -50,3 +50,7 @@ clean:
 # Verify the KiCad API facts this project plans around (docs/DECISIONS.md D6)
 assumptions kicad_source:
     uv run pytest tests/test_kicad_assumptions.py -v --kicad-source={{kicad_source}}
+
+# Audit every package pinned in uv.lock against OSV (uv's experimental `uv audit`).
+audit:
+    uv audit --frozen --preview-features audit-command
