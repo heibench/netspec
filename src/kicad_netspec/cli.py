@@ -7,7 +7,9 @@ Exit codes are part of the contract (DECISIONS D10) and mean different things::
 
     0  the design was read, and nothing asked for was violated
     1  the design was read, and something was violated -- a statement about the design
+    2  part of the contract could not be evaluated -- NOT a pass and NOT a fail
     4  the engine could not run, or its input was unreadable -- NOT about the design
+   64  usage: bad arguments, including every argparse error (EX_USAGE)
 """
 
 from __future__ import annotations
@@ -56,7 +58,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         raw, trailing = raw[:cut], raw[cut + 1 :]
 
     parser = _parser()
-    args = parser.parse_args(raw)
+    try:
+        args = parser.parse_args(raw)
+    except SystemExit as exc:
+        # argparse exits 2 on a usage error, and 2 is EXIT_INCOMPLETE -- a mistyped
+        # flag must not read as "could not decide" (A1). --help and --version exit
+        # 0 and pass through untouched. Same remap as partspec.
+        raise SystemExit(EXIT_USAGE if exc.code == 2 else exc.code) from None
     args.trailing = trailing
     if not getattr(args, "handler", None):
         parser.print_help()
