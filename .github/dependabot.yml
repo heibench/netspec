@@ -31,16 +31,18 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "build"
+    # ruff is pinned TWICE -- the dev group and `.pre-commit-config.yaml`'s rev
+    # -- and `tests/test_lint_config.py` requires them equal (#30). They are
+    # different ecosystems and Dependabot groups do not span ecosystems, so it
+    # can only ever bump one half, which the gate would refuse every release.
+    # ruff is a deliberate two-file manual bump instead, and both ecosystems
+    # ignore it. The gate is what makes that safe: forgetting the second file
+    # fails, it does not drift.
+    ignore:
+      - dependency-name: "ruff"
 
   # Hook revs rot exactly like action pins do, and nothing here was watching
   # them either.
-  #
-  # ruff is deliberately NOT ignored here, unlike in a sibling repo where an
-  # equality gate would refuse a half-bump. This repo has no such gate and the
-  # two pins have already drifted apart -- `ruff>=0.11` resolves to 0.16.5
-  # while `.pre-commit-config.yaml` names v0.11.12 -- so a bump toward the
-  # resolved version narrows the split rather than widening it. Closing it
-  # properly is a separate issue.
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:
@@ -50,3 +52,7 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "chore"
+    ignore:
+      # The FULL URL: this ecosystem names a hook repo by its `repo:` value, so
+      # `astral-sh/ruff-pre-commit` would match nothing and sit inert.
+      - dependency-name: "https://github.com/astral-sh/ruff-pre-commit"
