@@ -41,7 +41,7 @@ packages = ["src/kicad_netspec"]
 exclude = ["uv.lock"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.11", "pyright>=1.1"]
+dev = ["pytest>=8.0", "ruff==0.17.3", "pyright>=1.1"]
 
 [tool.ruff]
 line-length = 100

@@ -85,12 +85,27 @@ jobs:
       - name: Test
         run: just test
 
+  # `.pre-commit-config.yaml` claims its hooks check this repository. Until this
+  # job they ran only where someone had run `pre-commit install`, and
+  # `--no-verify` skipped them there. Not behind the paths filter: the
+  # whitespace, end-of-file and conflict-marker hooks read Markdown and docs too.
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: pre-commit/action@v3.0.1
+
   # ─── Unified gate ─────────────────────────────────────────────────────
   # The ONLY job required by branch protection. Add every job to `needs:`.
   ok:
     name: ok
     if: always()
-    needs: [changes, check, test]
+    needs: [changes, check, test, pre-commit]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

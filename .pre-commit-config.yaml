@@ -1,6 +1,9 @@
 repos:
+  # The rev must equal the ruff `uv.lock` resolves, and the dev group pins it
+  # exactly: `tests/test_lint_config.py` fails if either moves alone. Bump both
+  # in one commit (`.github/dependabot.yml` ignores ruff for that reason).
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.0
+    rev: v0.17.3
     hooks:
       - id: ruff
         args: [--fix]
@@ -11,6 +14,17 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        # KiCad and SKiDL write schematics without a final newline, and these
+        # fixtures are kept as the tools wrote them rather than edited by a hook.
+        exclude: ^tests/fixtures/.*\.kicad_(sch|pcb|pro)$
       - id: check-yaml
+      # Both need a flag or they are no-ops under `--all-files`, which is how CI
+      # runs them: check-added-large-files intersects with newly staged files,
+      # which is empty on a CI checkout, and check-merge-conflict returns 0 unless
+      # the repo is mid-merge. `--assume-in-merge` makes any bare `=======` line
+      # fail, including a setext heading or quoted conflict output; if that
+      # trips, fence the text or add an `exclude:`, do not drop the flag.
       - id: check-added-large-files
+        args: [--enforce-all]
       - id: check-merge-conflict
+        args: [--assume-in-merge]
