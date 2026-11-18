@@ -6,11 +6,11 @@ set dotenv-load := false
 default:
     @just --list
 
-# Install dependencies and set up environment.
-#
 # --all-extras deliberately: without it the `mcp` extra is absent, pyright cannot
 # resolve the MCP module, and its tests skip silently -- CI reported green while
 # covering none of that surface.
+
+# Install dependencies and set up environment
 setup:
     uv sync --all-extras
 
