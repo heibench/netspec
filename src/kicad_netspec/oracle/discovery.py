@@ -9,6 +9,7 @@ an environment fault must never be mistaken for a broken design (DECISIONS D10).
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -19,7 +20,12 @@ from kicad_netspec.oracle.base import EnvironmentError_
 __all__ = ["KiCadNotFound", "KiCadCli", "find_kicad_cli"]
 
 ENV_VAR = "NETSPEC_KICAD_CLI"
-"""Explicit override. Accepts a bare command or an absolute path."""
+"""Explicit override: a path, a bare command, or a command line.
+
+A value naming an existing file is used whole, spaces and all (``C:\\Program Files\\...``).
+Anything else is split like a shell would (:func:`shlex.split`), so quote a spaced path
+that carries arguments.
+"""
 
 FLATPAK_APP = "org.kicad.KiCad"
 
@@ -119,7 +125,13 @@ def _candidates(explicit: str | None) -> list[tuple[list[str], str]]:
 
     for value, origin in ((explicit, "explicit"), (os.environ.get(ENV_VAR), "env")):
         if value:
-            out.append((value.split() if " " in value else [value], origin))
+            try:
+                argv = [value] if Path(value).is_file() else shlex.split(value)
+            except ValueError as exc:
+                raise KiCadNotFound(
+                    f"{_NAMED_ORIGINS[origin]} is not a valid command line ({exc}): {value}"
+                ) from exc
+            out.append((argv, origin))
 
     on_path = shutil.which("kicad-cli")
     if on_path:

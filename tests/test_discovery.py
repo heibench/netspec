@@ -8,6 +8,8 @@ against an engine the caller never asked for.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from kicad_netspec import cli
@@ -67,6 +69,69 @@ def test_a_working_env_engine_is_still_used(monkeypatch: pytest.MonkeyPatch) -> 
     found = find_kicad_cli()
     assert found.origin == "env"
     assert found.version == "10.0.6"
+
+
+def _name_engine(how: str, value: str, monkeypatch: pytest.MonkeyPatch) -> str | None:
+    """Name the engine by ``$NETSPEC_KICAD_CLI`` or by argument; return the argument."""
+    if how == "env":
+        monkeypatch.setenv(ENV_VAR, value)
+        return None
+    monkeypatch.delenv(ENV_VAR, raising=False)
+    return value
+
+
+@pytest.mark.parametrize("how", ["env", "explicit"])
+def test_a_named_engine_under_a_path_with_spaces_is_one_command(
+    how: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #51: ``C:\\Program Files\\KiCad\\...`` is where Windows installs KiCad.
+
+    A real stub is probed, so a split path fails to run rather than passing a fake probe.
+    """
+    stub = tmp_path / "Program Files" / "KiCad" / "kicad-cli"
+    stub.parent.mkdir(parents=True)
+    stub.write_text("#!/bin/sh\necho 10.0.8\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    found = find_kicad_cli(explicit=_name_engine(how, str(stub), monkeypatch))
+    assert found.argv == (str(stub),)
+    assert found.version == "10.0.8"
+    assert found.origin == how
+
+
+@pytest.mark.parametrize("how", ["env", "explicit"])
+@pytest.mark.parametrize(
+    ("value", "argv"),
+    [
+        (
+            "flatpak run --command=kicad-cli org.kicad.KiCad",
+            ("flatpak", "run", "--command=kicad-cli", "org.kicad.KiCad"),
+        ),
+        (
+            "'/opt/my builds/kicad-cli' --some-flag",
+            ("/opt/my builds/kicad-cli", "--some-flag"),
+        ),
+    ],
+    ids=["arguments", "quoted-path"],
+)
+def test_a_named_command_line_is_split_like_a_shell(
+    how: str, value: str, argv: tuple[str, ...], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A value that is not a file is a command line; quoting keeps a spaced path whole."""
+    monkeypatch.setattr("kicad_netspec.oracle.discovery._probe", lambda _argv: "10.0.6")
+    found = find_kicad_cli(explicit=_name_engine(how, value, monkeypatch))
+    assert found.argv == argv
+    assert found.origin == how
+
+
+@pytest.mark.parametrize("how", ["env", "explicit"])
+def test_an_unparseable_named_command_line_is_an_environment_fault(
+    how: str, nothing_works: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unbalanced quote is a bad override, not a traceback at exit 1."""
+    with pytest.raises(KiCadNotFound) as exc:
+        find_kicad_cli(explicit=_name_engine(how, "'/opt/kicad-cli", monkeypatch))
+    assert "'/opt/kicad-cli" in str(exc.value)
 
 
 def test_unnamed_candidates_still_fall_through(
