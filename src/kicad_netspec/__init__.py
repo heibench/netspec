@@ -2,7 +2,7 @@
 
 __all__ = ["__version__"]
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 from kicad_netspec.contract import Spec, forbid, mirrors, net, polarity, through
 
