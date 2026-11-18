@@ -58,14 +58,29 @@ def test_the_workflow_filename_and_environment_match_the_registration() -> None:
     assert "environment: pypi" in RELEASE.read_text()
 
 
-def test_every_action_in_the_release_workflow_is_pinned_to_an_exact_ref() -> None:
-    """A floating major is mutable: its contents can change between releases.
+def test_every_action_in_every_workflow_is_pinned_to_a_sha() -> None:
+    """A tag is mutable: its contents can change between releases.
 
     The publish step holds this project's OIDC identity for PyPI, which is exactly the
     thing not to leave on a moving ref.
+
+    A full commit SHA with the version in a trailing comment, in every workflow, not
+    an exact tag in release.yml alone (#34). On a major bump Dependabot rewrote exact
+    tags to floating majors and failed this gate (#32); a SHA pin it bumps SHA-for-SHA
+    and rewrites the comment with it (#44: `dc37677... # v1.14.2` to
+    `7245906... # v1.14.3`), majors included (heibench/orlab#57, v5.7.0 to v6.0.0), so
+    its PRs pass here unaided. All workflows rather than one file, because the
+    actions group bumps them together and a split policy is the conflict again.
+    Local actions (`./`) are this repo's own code and are exempt.
     """
-    floating = re.findall(r"uses:\s*(\S+@v\d+)\s*$", RELEASE.read_text(), re.MULTILINE)
-    assert not floating, f"pin these to an exact version or SHA: {floating}"
+    pin = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
+    unpinned = [
+        f"{wf.name}: {ref}"
+        for wf in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+        for ref in re.findall(r"^\s*(?:-\s*)?uses:\s*(.+?)\s*$", wf.read_text(), re.MULTILINE)
+        if not ref.startswith("./") and not pin.match(ref)
+    ]
+    assert not unpinned, f"pin to a full SHA with a `# vX.Y.Z` comment: {unpinned}"
 
 
 # -- the ancestry gate, exercised rather than grepped ----------------------------------

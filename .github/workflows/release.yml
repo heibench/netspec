@@ -10,8 +10,8 @@
 #
 # That argument rests on main being protected to require `Check`, which it now is --
 # `ok` required, administrators included, so a tag on main is a commit the gate passed.
-# The ancestry check below enforces the "on main" half. Every action here is pinned to an
-# exact ref rather than a floating major, and a test enforces that.
+# The ancestry check below enforces the "on main" half. Every action here is pinned to a
+# full commit SHA with its version in a comment, and a test enforces that (#34).
 
 name: Release
 
@@ -35,12 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history: the ancestry check needs to see main.
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v7.6.0
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       # The gate the safety argument rests on. Nothing below runs the test suite, so a
       # tag pointing off main would publish code the Check gate never saw. In a script
@@ -91,7 +91,7 @@ jobs:
           print('installed alongside:', sorted(extra) or 'nothing')
           sys.exit(1 if extra else 0)"
 
-      - uses: actions/upload-artifact@v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist/
@@ -106,15 +106,15 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8.0.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dist
           path: dist/
 
       # SHA-pinned, not `@release/v1`. This is the one action holding the OIDC identity
       # for PyPI, and a branch ref is mutable — its contents can change between one
-      # release and the next. Pin below is v1.14.2; bump it deliberately, with the
-      # version in the comment.
+      # release and the next. The version is in the trailing comment, and Dependabot
+      # bumps the SHA and the comment together.
       #
       # Keep it CURRENT, not merely pinned. This action bundles its own twine, and an
       # old one rejects new metadata: v1.12.4 failed the first 0.5.0 attempt with
@@ -139,7 +139,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 

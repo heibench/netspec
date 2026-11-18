@@ -19,7 +19,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Fetch KiCad master (blobless, api dirs only)
         run: |
@@ -30,7 +30,7 @@ jobs:
             pcbnew/api pcbnew/python eeschema/api common/api kicad/cli
           echo "KiCad master at $(git rev-parse --short HEAD)"
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - run: uv sync
 
       - name: Verify planned API commands still exist

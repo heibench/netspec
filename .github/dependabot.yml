@@ -10,6 +10,11 @@
 # updates work together. The `ok` gate decides whether each batch is safe.
 version: 2
 updates:
+  # Every `uses:` is a full SHA with a `# vX.Y.Z` comment, and
+  # `tests/test_packaging.py` refuses anything else (#34). Dependabot bumps a
+  # SHA pin to the new SHA and rewrites the comment (#44 here; a v5 to v6
+  # major in heibench/orlab#57), so these PRs pass that gate unaided. Exact
+  # tags did not: #32's major bumps came back as floating majors and failed it.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
